@@ -73,8 +73,7 @@ export default {
         web: {
             bundler: "metro",
             output: "single",
-            favicon: "./sources/assets/images/favicon.png",
-            baseUrl: process.env.GITHUB_PAGES ? "/happy" : ""
+            favicon: "./sources/assets/images/favicon.png"
         },
         plugins: [
             require("./plugins/withEinkCompatibility.js"),
@@ -156,7 +155,8 @@ export default {
             }
         },
         experiments: {
-            typedRoutes: true
+            typedRoutes: true,
+            baseUrl: process.env.GITHUB_PAGES ? "/happy" : ""
         },
         extra: {
             router: {
