@@ -73,7 +73,8 @@ export default {
         web: {
             bundler: "metro",
             output: "single",
-            favicon: "./sources/assets/images/favicon.png"
+            favicon: "./sources/assets/images/favicon.png",
+            baseUrl: process.env.GITHUB_PAGES ? "/happy" : ""
         },
         plugins: [
             require("./plugins/withEinkCompatibility.js"),
