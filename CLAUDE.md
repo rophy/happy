@@ -33,6 +33,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `yarn test` - Run tests in watch mode (Jest with jest-expo preset)
 - No existing tests in the codebase yet
 
+### Web Testing with Playwright MCP
+
+For interactive web testing, use the playwright-mcp tools with the local dev server:
+
+1. Start the web dev server: `yarn web` (runs on http://localhost:8081)
+2. Use playwright-mcp tools to interact with the app
+3. Navigate to http://localhost:8081/server and make sure server endpoit is configured as `http://localhost:8888`
+
 ### Production
 - `yarn ota` - Deploy over-the-air updates via EAS Update to production branch
 
