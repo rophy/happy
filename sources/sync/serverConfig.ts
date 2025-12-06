@@ -1,22 +1,35 @@
 import { MMKV } from 'react-native-mmkv';
+import { Platform } from 'react-native';
 
-// Separate MMKV instance for server config that persists across logouts
-const serverConfigStorage = new MMKV({ id: 'server-config' });
+// Separate MMKV instance for server config that persists across logouts (native only)
+const serverConfigStorage = Platform.OS !== 'web' ? new MMKV({ id: 'server-config' }) : null;
 
 const SERVER_KEY = 'custom-server-url';
 const DEFAULT_SERVER_URL = 'https://api.cluster-fluster.com';
 
 export function getServerUrl(): string {
-    return serverConfigStorage.getString(SERVER_KEY) || 
-           process.env.EXPO_PUBLIC_HAPPY_SERVER_URL || 
-           DEFAULT_SERVER_URL;
+    let customUrl: string | null = null;
+    if (Platform.OS === 'web') {
+        customUrl = localStorage.getItem(SERVER_KEY);
+    } else {
+        customUrl = serverConfigStorage?.getString(SERVER_KEY) ?? null;
+    }
+    return customUrl || process.env.EXPO_PUBLIC_HAPPY_SERVER_URL || DEFAULT_SERVER_URL;
 }
 
 export function setServerUrl(url: string | null): void {
     if (url && url.trim()) {
-        serverConfigStorage.set(SERVER_KEY, url.trim());
+        if (Platform.OS === 'web') {
+            localStorage.setItem(SERVER_KEY, url.trim());
+        } else {
+            serverConfigStorage?.set(SERVER_KEY, url.trim());
+        }
     } else {
-        serverConfigStorage.delete(SERVER_KEY);
+        if (Platform.OS === 'web') {
+            localStorage.removeItem(SERVER_KEY);
+        } else {
+            serverConfigStorage?.delete(SERVER_KEY);
+        }
     }
 }
 

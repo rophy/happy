@@ -1,14 +1,47 @@
 import { MMKV } from 'react-native-mmkv';
+import { Platform } from 'react-native';
 import { Settings, settingsDefaults, settingsParse, SettingsSchema } from './settings';
 import { LocalSettings, localSettingsDefaults, localSettingsParse } from './localSettings';
 import { Purchases, purchasesDefaults, purchasesParse } from './purchases';
 import { Profile, profileDefaults, profileParse } from './profile';
 import type { PermissionMode } from '@/components/PermissionModeSelector';
 
-const mmkv = new MMKV();
+const mmkv = Platform.OS !== 'web' ? new MMKV() : null;
+
+// Web-compatible storage helpers
+function getString(key: string): string | undefined {
+    if (Platform.OS === 'web') {
+        return localStorage.getItem(key) ?? undefined;
+    }
+    return mmkv?.getString(key);
+}
+
+function setString(key: string, value: string): void {
+    if (Platform.OS === 'web') {
+        localStorage.setItem(key, value);
+    } else {
+        mmkv?.set(key, value);
+    }
+}
+
+function deleteKey(key: string): void {
+    if (Platform.OS === 'web') {
+        localStorage.removeItem(key);
+    } else {
+        mmkv?.delete(key);
+    }
+}
+
+function clearAll(): void {
+    if (Platform.OS === 'web') {
+        localStorage.clear();
+    } else {
+        mmkv?.clearAll();
+    }
+}
 
 export function loadSettings(): { settings: Settings, version: number | null } {
-    const settings = mmkv.getString('settings');
+    const settings = getString('settings');
     if (settings) {
         try {
             const parsed = JSON.parse(settings);
@@ -22,11 +55,11 @@ export function loadSettings(): { settings: Settings, version: number | null } {
 }
 
 export function saveSettings(settings: Settings, version: number) {
-    mmkv.set('settings', JSON.stringify({ settings, version }));
+    setString('settings', JSON.stringify({ settings, version }));
 }
 
 export function loadPendingSettings(): Partial<Settings> {
-    const pending = mmkv.getString('pending-settings');
+    const pending = getString('pending-settings');
     if (pending) {
         try {
             const parsed = JSON.parse(pending);
@@ -40,11 +73,11 @@ export function loadPendingSettings(): Partial<Settings> {
 }
 
 export function savePendingSettings(settings: Partial<Settings>) {
-    mmkv.set('pending-settings', JSON.stringify(settings));
+    setString('pending-settings', JSON.stringify(settings));
 }
 
 export function loadLocalSettings(): LocalSettings {
-    const localSettings = mmkv.getString('local-settings');
+    const localSettings = getString('local-settings');
     if (localSettings) {
         try {
             const parsed = JSON.parse(localSettings);
@@ -58,11 +91,11 @@ export function loadLocalSettings(): LocalSettings {
 }
 
 export function saveLocalSettings(settings: LocalSettings) {
-    mmkv.set('local-settings', JSON.stringify(settings));
+    setString('local-settings', JSON.stringify(settings));
 }
 
 export function loadThemePreference(): 'light' | 'dark' | 'adaptive' {
-    const localSettings = mmkv.getString('local-settings');
+    const localSettings = getString('local-settings');
     if (localSettings) {
         try {
             const parsed = JSON.parse(localSettings);
@@ -77,7 +110,7 @@ export function loadThemePreference(): 'light' | 'dark' | 'adaptive' {
 }
 
 export function loadPurchases(): Purchases {
-    const purchases = mmkv.getString('purchases');
+    const purchases = getString('purchases');
     if (purchases) {
         try {
             const parsed = JSON.parse(purchases);
@@ -91,11 +124,11 @@ export function loadPurchases(): Purchases {
 }
 
 export function savePurchases(purchases: Purchases) {
-    mmkv.set('purchases', JSON.stringify(purchases));
+    setString('purchases', JSON.stringify(purchases));
 }
 
 export function loadSessionDrafts(): Record<string, string> {
-    const drafts = mmkv.getString('session-drafts');
+    const drafts = getString('session-drafts');
     if (drafts) {
         try {
             return JSON.parse(drafts);
@@ -108,11 +141,11 @@ export function loadSessionDrafts(): Record<string, string> {
 }
 
 export function saveSessionDrafts(drafts: Record<string, string>) {
-    mmkv.set('session-drafts', JSON.stringify(drafts));
+    setString('session-drafts', JSON.stringify(drafts));
 }
 
 export function loadSessionPermissionModes(): Record<string, PermissionMode> {
-    const modes = mmkv.getString('session-permission-modes');
+    const modes = getString('session-permission-modes');
     if (modes) {
         try {
             return JSON.parse(modes);
@@ -125,11 +158,11 @@ export function loadSessionPermissionModes(): Record<string, PermissionMode> {
 }
 
 export function saveSessionPermissionModes(modes: Record<string, PermissionMode>) {
-    mmkv.set('session-permission-modes', JSON.stringify(modes));
+    setString('session-permission-modes', JSON.stringify(modes));
 }
 
 export function loadProfile(): Profile {
-    const profile = mmkv.getString('profile');
+    const profile = getString('profile');
     if (profile) {
         try {
             const parsed = JSON.parse(profile);
@@ -143,26 +176,26 @@ export function loadProfile(): Profile {
 }
 
 export function saveProfile(profile: Profile) {
-    mmkv.set('profile', JSON.stringify(profile));
+    setString('profile', JSON.stringify(profile));
 }
 
 // Simple temporary text storage for passing large strings between screens
 export function storeTempText(content: string): string {
     const id = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    mmkv.set(`temp_text_${id}`, content);
+    setString(`temp_text_${id}`, content);
     return id;
 }
 
 export function retrieveTempText(id: string): string | null {
-    const content = mmkv.getString(`temp_text_${id}`);
+    const content = getString(`temp_text_${id}`);
     if (content) {
         // Auto-delete after retrieval
-        mmkv.delete(`temp_text_${id}`);
+        deleteKey(`temp_text_${id}`);
         return content;
     }
     return null;
 }
 
 export function clearPersistence() {
-    mmkv.clearAll();
+    clearAll();
 }
