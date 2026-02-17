@@ -130,6 +130,10 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
                 }
             } catch (e) {
                 logger.debug('[local]: launch error', e);
+                // If we already have an exit reason (e.g. doSwitch set it), don't overwrite
+                if (exitReason) {
+                    break;
+                }
                 // If Claude exited with non-zero exit code, propagate it
                 if (e instanceof ExitCodeError) {
                     session.client.closeClaudeSessionTurn('failed');

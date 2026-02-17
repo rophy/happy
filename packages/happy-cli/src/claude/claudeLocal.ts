@@ -374,8 +374,9 @@ export async function claudeLocal(opts: {
                         }
                     }
 
-                    if (signal === 'SIGTERM' && opts.abort.aborted) {
+                    if (opts.abort.aborted && (signal === 'SIGTERM' || code === 143)) {
                         // Normal termination due to abort signal
+                        // code 143 = 128 + SIGTERM(15), happens when process handles SIGTERM internally
                         r();
                     } else if (signal) {
                         reject(new Error(`Process terminated with signal: ${signal}`));
