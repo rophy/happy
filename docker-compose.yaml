@@ -31,5 +31,24 @@ services:
       - webapp
     restart: unless-stopped
 
+  cli:
+    build:
+      context: .
+      dockerfile: Dockerfile.cli
+    environment:
+      - HAPPY_SERVER_URL=http://server:3005
+      - HAPPY_WEBAPP_URL=${HAPPY_WEBAPP_URL:-https://web.nuc-rophy.jsgr.xyz:8443}
+      - HAPPY_HOME_DIR=/data/.happy
+    volumes:
+      - cli-data:/data
+      - cli-home:/root
+      - cli-workspace:/workspace
+    working_dir: /workspace
+    profiles:
+      - cli
+
 volumes:
   server-data:
+  cli-data:
+  cli-home:
+  cli-workspace:

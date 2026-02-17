@@ -50,6 +50,47 @@ Users configure `https://api.example.com` as the custom server URL in the webapp
 | `POSTHOG_API_KEY` | No | PostHog analytics |
 | `REVENUE_CAT_STRIPE` | No | RevenueCat billing |
 
+### CLI Testing
+
+The `cli` service runs happy-cli in a container with Claude Code pre-installed. It uses a `cli` profile so it won't start with `docker compose up`.
+
+**First-time setup** (authenticate):
+
+```bash
+docker compose run --rm -it cli "happy auth login"
+```
+
+This shows a URL like `https://web.../terminal/connect#key=...`. Open it in a browser where you have already created an account on the webapp, then click "Accept Connection". The CLI must be running while you accept.
+
+**Start a session:**
+
+```bash
+docker compose run --rm -it cli
+```
+
+Credentials persist in the `cli-data` volume, so subsequent runs skip auth.
+
+**Override command:**
+
+```bash
+docker compose run --rm -it cli "happy doctor"
+docker compose run --rm -it cli "bash"
+```
+
+**Volumes:**
+
+| Volume | Mount | Purpose |
+|--------|-------|---------|
+| `cli-data` | `/data` | Happy credentials and settings (`/data/.happy/`) |
+| `cli-home` | `/root` | User home (`.claude/` settings, shell history) |
+| `cli-workspace` | `/workspace` | Working directory for Claude Code sessions |
+
+**Reset CLI state:**
+
+```bash
+docker volume rm happy_cli-data happy_cli-home happy_cli-workspace
+```
+
 ### Data Persistence
 
 Server data (PGlite database, local files) is stored in the `server-data` docker volume mounted at `/data`.
