@@ -43,7 +43,7 @@ RUN cd packages/happy-cli && npx shx rm -rf dist && npx pkgroll
 # Stage 3: runtime
 FROM node:20-slim AS runner
 
-RUN apt-get update && apt-get install -y tini && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y tini git && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /repo
 
@@ -59,6 +59,11 @@ COPY --from=builder /repo/packages/happy-cli /repo/packages/happy-cli
 
 # Install happy CLI via npm link so `happy` is on PATH
 RUN cd packages/happy-cli && npm link
+
+# Run as non-root user (Claude Code refuses --dangerously-skip-permissions as root)
+RUN mkdir -p /data /workspace && \
+    chown -R node:node /data /workspace
+USER node
 
 ENTRYPOINT ["tini", "--", "bash", "-c"]
 CMD ["happy"]

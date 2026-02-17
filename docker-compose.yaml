@@ -1,13 +1,31 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=happy
+      - POSTGRES_PASSWORD=happy
+      - POSTGRES_DB=happy
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U happy"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   server:
     build:
       context: .
       dockerfile: Dockerfile
     environment:
       - HANDY_MASTER_SECRET=${HANDY_MASTER_SECRET:-change-me-to-a-real-secret}
+      - DATABASE_URL=postgresql://happy:happy@postgres:5432/happy
+      - PGLITE_DIR=
       - PORT=3005
-    volumes:
-      - server-data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   webapp:
@@ -17,7 +35,7 @@ services:
       args:
         - POSTHOG_API_KEY=${POSTHOG_API_KEY:-}
         - REVENUE_CAT_STRIPE=${REVENUE_CAT_STRIPE:-}
-        - HAPPY_SERVER_URL=${HAPPY_SERVER_URL:-}
+        - HAPPY_SERVER_URL=https://api.nuc-rophy.jsgr.xyz:8443
     restart: unless-stopped
 
   nginx:
@@ -41,14 +59,14 @@ services:
       - HAPPY_HOME_DIR=/data/.happy
     volumes:
       - cli-data:/data
-      - cli-home:/root
+      - cli-home:/home/node
       - cli-workspace:/workspace
     working_dir: /workspace
     profiles:
       - cli
 
 volumes:
-  server-data:
+  postgres-data:
   cli-data:
   cli-home:
   cli-workspace:

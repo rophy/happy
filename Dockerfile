@@ -57,4 +57,4 @@ RUN ln -s /repo/packages/happy-server/prisma /repo/prisma
 VOLUME /data
 EXPOSE 3005
 
-CMD ["sh", "-c", "node_modules/.bin/tsx packages/happy-server/sources/standalone.ts migrate && cd packages/happy-server && exec ../../node_modules/.bin/tsx sources/standalone.ts serve"]
+CMD ["sh", "-c", "if [ -n \"$DATABASE_URL\" ]; then cd packages/happy-server && npx prisma migrate deploy && cd /repo; else node_modules/.bin/tsx packages/happy-server/sources/standalone.ts migrate; fi && cd packages/happy-server && exec ../../node_modules/.bin/tsx sources/standalone.ts serve"]
