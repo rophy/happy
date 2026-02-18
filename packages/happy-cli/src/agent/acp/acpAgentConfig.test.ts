@@ -6,6 +6,7 @@ describe('KNOWN_ACP_AGENTS', () => {
     expect(KNOWN_ACP_AGENTS).toEqual({
       gemini: { command: 'gemini', args: ['--experimental-acp'] },
       opencode: { command: 'opencode', args: ['acp'] },
+      cline: { command: 'cline', args: ['--acp'] },
     });
   });
 });
