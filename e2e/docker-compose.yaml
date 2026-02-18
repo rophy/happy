@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: happy
+      POSTGRES_PASSWORD: happy
+      POSTGRES_DB: happy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U happy"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+  server:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      HANDY_MASTER_SECRET: e2e-test-secret
+      DATABASE_URL: postgresql://happy:happy@postgres:5432/happy
+      PGLITE_DIR: ""
+      PORT: "3005"
+    ports:
+      - "3005:3005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  webapp:
+    build:
+      context: ..
+      dockerfile: Dockerfile.webapp
+      args:
+        HAPPY_SERVER_URL: http://localhost:3005
+    ports:
+      - "8080:80"
+    depends_on:
+      - server

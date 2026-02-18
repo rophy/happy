@@ -114,3 +114,27 @@ yarn vitest run    # run tests without rebuilding (faster, uses last build)
 ```
 
 Requires `yarn install` at the repo root first.
+
+### E2E Tests
+
+Uses Playwright against Docker Compose services. The `e2e/` directory is a standalone npm project (not part of the yarn workspace).
+
+```bash
+cd e2e
+npm install                       # install playwright
+npx playwright install chromium   # install browser (one-time)
+```
+
+**Start services and run tests:**
+
+```bash
+docker compose up --build -d      # start server + webapp + postgres
+npx playwright test               # run all e2e tests
+npx playwright test --ui          # interactive UI mode
+npx playwright show-report        # view HTML report
+docker compose down               # cleanup
+```
+
+Services: server on `localhost:3005`, webapp on `localhost:8080` (no nginx).
+
+If services are already running, `npx playwright test` reuses them (`reuseExistingServer: true`).
