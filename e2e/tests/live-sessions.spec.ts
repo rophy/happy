@@ -1,12 +1,20 @@
 import { test, expect } from '@playwright/test';
-import { execSync, exec } from 'child_process';
+import { execSync } from 'child_process';
+import path from 'path';
 
-const E2E_DIR = '/home/rophy/projects/happy/e2e';
+const E2E_DIR = path.resolve(__dirname, '..');
 
 /**
  * E2E Tests for Live Sessions
  *
  * Tests the flow: webapp account creation -> CLI ACP session -> session visible in webapp
+ *
+ * The CLI uses the same account as the webapp by extracting credentials from
+ * localStorage after account creation and passing them to seed-credentials.js.
+ *
+ * Only runs on one viewport (phone) since the test exercises the CLI->server->webapp
+ * integration, not viewport-specific layout. Running on multiple viewports would
+ * cause Docker container race conditions.
  *
  * Prerequisites:
  *   - server, webapp, postgres running via docker compose (handled by webServer config)
@@ -23,12 +31,12 @@ function run(cmd: string, options?: { timeout?: number }) {
   });
 }
 
-// Helper: seed credentials in the CLI container (creates account on server)
-async function seedCliCredentials() {
-  console.log('Seeding CLI credentials...');
+// Helper: seed credentials in the CLI container using webapp's credentials
+function seedCliCredentials(token: string, secret: string) {
+  console.log('Seeding CLI credentials (shared account)...');
   try {
     const output = run(
-      'docker compose --profile manual run --rm --no-deps -T cli "node /app/seed-credentials.js"',
+      `docker compose --profile manual run --rm --no-deps -T cli "node /app/seed-credentials.js --token ${token} --secret ${secret}"`,
       { timeout: 60_000 },
     );
     console.log('Seed output:', output);
@@ -42,7 +50,6 @@ async function seedCliCredentials() {
 function startMockAcpSession() {
   console.log('Starting mock ACP session...');
   try {
-    // Run in detached mode so it doesn't block
     run(
       'docker compose --profile manual run -d -T cli "happy acp -- node /app/mock-acp-agent.js"',
       { timeout: 30_000 },
@@ -57,7 +64,6 @@ function startMockAcpSession() {
 // Helper: stop all CLI containers spawned by e2e tests
 function stopCliContainers() {
   try {
-    // Find running containers with "e2e-cli-run" in the name and remove them
     const containers = execSync(
       'docker ps -q --filter "name=e2e-cli-run"',
       { encoding: 'utf8', cwd: E2E_DIR },
@@ -73,13 +79,26 @@ function stopCliContainers() {
   }
 }
 
+// Helper: clear CLI data volume between tests
+function clearCliData() {
+  try {
+    run('docker volume rm -f e2e_cli-data-e2e', { timeout: 10_000 });
+  } catch {
+    // Ignore if volume doesn't exist
+  }
+}
+
 test.describe('Live Sessions', () => {
-  // Clean up CLI containers after each test
   test.afterEach(async () => {
     stopCliContainers();
+    clearCliData();
   });
 
-  test('start ACP session and see it in webapp', async ({ page }) => {
+  test('start ACP session and see it in webapp', async ({ page }, testInfo) => {
+    // Only run on phone viewport — this test uses shared Docker infrastructure
+    // that can't be parallelized across viewports.
+    test.skip(testInfo.project.name !== 'chromium-phone', 'runs only on phone viewport');
+
     // Step 1: Create account in webapp
     await page.goto('/');
     await expect(page.getByText('Create account')).toBeVisible({ timeout: 10_000 });
@@ -90,24 +109,24 @@ test.describe('Live Sessions', () => {
     ]);
     await expect(page.getByText('connected')).toBeVisible({ timeout: 15_000 });
 
-    // Step 2: Seed CLI credentials (creates a separate account on the server)
-    await seedCliCredentials();
+    // Step 2: Extract credentials from webapp's localStorage
+    const credentials = await page.evaluate(() => {
+      const raw = localStorage.getItem('auth_credentials');
+      if (!raw) throw new Error('No auth_credentials in localStorage');
+      return JSON.parse(raw) as { token: string; secret: string };
+    });
+    console.log(`Extracted webapp credentials, token: ${credentials.token.substring(0, 20)}...`);
 
-    // Step 3: Start mock ACP session
+    // Step 3: Seed CLI with the same credentials
+    seedCliCredentials(credentials.token, credentials.secret);
+
+    // Step 4: Start mock ACP session
     startMockAcpSession();
 
-    // Step 4: Wait for session to appear in webapp
-    // The session should show up in the sessions list once the CLI connects to the server
-    // Give it time to establish the WebSocket connection and register the session
-    await page.waitForTimeout(5_000);
-
-    // Reload to pick up new session data
-    await page.reload();
-    await expect(page.getByText('connected')).toBeVisible({ timeout: 15_000 });
-
-    // TODO: Assert that the session appears in the webapp session list.
-    // The exact UI elements depend on how the webapp renders sessions from other accounts
-    // vs. the same account. For now, verify the page doesn't crash and remains functional.
-    console.log('Live session test completed - session started successfully');
+    // Step 5: Verify session appears in webapp
+    // The session name is derived from the working directory (/workspace -> "workspace")
+    // Use exact match to avoid matching the path header "/workspace"
+    await expect(page.getByText('workspace', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('online').first()).toBeVisible();
   });
 });

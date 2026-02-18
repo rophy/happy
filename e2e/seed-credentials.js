@@ -3,11 +3,12 @@
 /**
  * Seed Happy CLI credentials for E2E testing
  *
- * Creates a new account on the Happy server and writes valid credentials
- * to HAPPY_HOME_DIR. Must be run at runtime when the server is available.
+ * Two modes:
+ *   1. Create new account: node seed-credentials.js
+ *   2. Use existing credentials: node seed-credentials.js --token <token> --secret <base64url-secret>
  *
- * Usage:
- *   HAPPY_SERVER_URL=http://server:3005 HAPPY_HOME_DIR=/data/.happy node seed-credentials.js
+ * In mode 2, the secret should be base64url-encoded (as stored by the webapp).
+ * It will be converted to standard base64 for the CLI's access.key format.
  */
 
 const fs = require('fs');
@@ -130,15 +131,53 @@ function writeCredentials(token, secret) {
   fs.mkdirSync(path.join(HAPPY_HOME_DIR, 'logs'), { recursive: true });
 }
 
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const parsed = {};
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--token' && args[i + 1]) {
+      parsed.token = args[++i];
+    } else if (args[i] === '--secret' && args[i + 1]) {
+      parsed.secret = args[++i];
+    }
+  }
+  return parsed;
+}
+
+// Convert base64url to standard base64
+function base64urlToBase64(base64url) {
+  let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = base64.length % 4;
+  if (pad === 2) base64 += '==';
+  else if (pad === 3) base64 += '=';
+  return base64;
+}
+
 async function main() {
   log(`Server URL: ${SERVER_URL}`);
   log(`Happy home: ${HAPPY_HOME_DIR}`);
 
-  await waitForServer();
-  log('Server is available');
+  const args = parseArgs();
 
-  const { secret, token } = await createAccount();
-  log(`Account created, token: ${token.substring(0, 20)}...`);
+  let token, secret;
+
+  if (args.token && args.secret) {
+    // Mode 2: Use existing credentials from webapp
+    log('Using provided credentials (shared account mode)');
+    token = args.token;
+    // Webapp stores secret as base64url, CLI expects standard base64
+    const secretBase64 = base64urlToBase64(args.secret);
+    secret = Buffer.from(secretBase64, 'base64');
+    log(`Token: ${token.substring(0, 20)}...`);
+  } else {
+    // Mode 1: Create new account
+    await waitForServer();
+    log('Server is available');
+    const result = await createAccount();
+    token = result.token;
+    secret = result.secret;
+    log(`Account created, token: ${token.substring(0, 20)}...`);
+  }
 
   writeCredentials(token, secret);
   log('Credentials seeded successfully');
