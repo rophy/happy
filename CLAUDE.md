@@ -94,3 +94,23 @@ docker volume rm happy_cli-data happy_cli-home happy_cli-workspace
 ### Data Persistence
 
 Server data (PGlite database, local files) is stored in the `server-data` docker volume mounted at `/data`.
+
+## Prerequisites
+
+- **Node.js** 20+ (Docker uses Node 20; tested with 20 and 24)
+- **Yarn** 1.22.x (`corepack enable` to activate)
+- Run `yarn install` at the repo root before building or testing
+
+## Tests
+
+### happy-cli
+
+Uses vitest. The `test` script builds first (`tsc --noEmit` + `pkgroll`), then runs tests.
+
+```bash
+cd packages/happy-cli
+yarn test          # build + run all tests
+yarn vitest run    # run tests without rebuilding (faster, uses last build)
+```
+
+Requires `yarn install` at the repo root first.
