@@ -288,7 +288,7 @@ async function withRetry<T>(
     try {
       return await operation();
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
+      lastError = error instanceof Error ? error : new Error(typeof error === 'object' && error !== null ? JSON.stringify(error) : String(error));
 
       const shouldRetry = options.shouldRetry ? options.shouldRetry(lastError) : true;
       if (attempt < options.maxAttempts && shouldRetry) {
@@ -859,7 +859,7 @@ export class AcpBackend implements AgentBackend {
         this.emit({ 
           type: 'status', 
           status: 'error', 
-          detail: error instanceof Error ? error.message : String(error) 
+          detail: error instanceof Error ? error.message : (typeof error === 'object' ? JSON.stringify(error) : String(error))
         });
       }
       throw error;

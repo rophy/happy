@@ -50,8 +50,8 @@ WORKDIR /repo
 ENV NODE_ENV=production
 ENV HAPPY_HOME_DIR=/data/.happy
 
-# Install Claude Code CLI globally
-RUN npm install -g @anthropic-ai/claude-code
+# Install Claude Code CLI and Cline CLI globally
+RUN npm install -g @anthropic-ai/claude-code cline
 
 COPY --from=builder /repo/node_modules /repo/node_modules
 COPY --from=builder /repo/packages/happy-wire /repo/packages/happy-wire
