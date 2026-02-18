@@ -36,3 +36,26 @@ services:
       - "8080:80"
     depends_on:
       - server
+
+  # CLI container for live session e2e testing
+  cli:
+    build:
+      context: ..
+      dockerfile: e2e/Dockerfile.cli-e2e
+    environment:
+      HAPPY_SERVER_URL: http://server:3005
+      HAPPY_HOME_DIR: /data/.happy
+      NODE_ENV: test
+    volumes:
+      - cli-data-e2e:/data
+      - cli-workspace-e2e:/workspace
+    working_dir: /workspace
+    depends_on:
+      - server
+    # Don't start automatically - Playwright controls it
+    profiles:
+      - manual
+
+volumes:
+  cli-data-e2e:
+  cli-workspace-e2e:
