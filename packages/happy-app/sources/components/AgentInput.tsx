@@ -1063,6 +1063,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                 {props.onAbort && (
                                     <Shaker ref={shakerRef}>
                                         <Pressable
+                                            testID="abort-button"
                                             style={(p) => ({
                                                 flexDirection: 'row',
                                                 alignItems: 'center',

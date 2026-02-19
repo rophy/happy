@@ -88,6 +88,37 @@ function clearCliData() {
   }
 }
 
+// Helper: create account, seed CLI credentials, start ACP session, wait for session to appear
+async function setupLiveSession(page: import('@playwright/test').Page) {
+  // Create account in webapp
+  await page.goto('/');
+  await expect(page.getByText('Create account')).toBeVisible({ timeout: 10_000 });
+
+  await Promise.all([
+    page.waitForResponse(resp => resp.url().includes('/v1/auth') && resp.status() === 200),
+    page.getByText('Create account').click(),
+  ]);
+  await expect(page.getByText('connected')).toBeVisible({ timeout: 15_000 });
+
+  // Extract credentials from webapp's localStorage
+  const credentials = await page.evaluate(() => {
+    const raw = localStorage.getItem('auth_credentials');
+    if (!raw) throw new Error('No auth_credentials in localStorage');
+    return JSON.parse(raw) as { token: string; secret: string };
+  });
+  console.log(`Extracted webapp credentials, token: ${credentials.token.substring(0, 20)}...`);
+
+  // Seed CLI with the same credentials
+  seedCliCredentials(credentials.token, credentials.secret);
+
+  // Start mock ACP session
+  startMockAcpSession();
+
+  // Wait for session to appear
+  await expect(page.getByText('workspace', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('online').first()).toBeVisible();
+}
+
 test.describe('Live Sessions', () => {
   test.afterEach(async () => {
     stopCliContainers();
@@ -95,38 +126,47 @@ test.describe('Live Sessions', () => {
   });
 
   test('start ACP session and see it in webapp', async ({ page }, testInfo) => {
-    // Only run on phone viewport — this test uses shared Docker infrastructure
-    // that can't be parallelized across viewports.
     test.skip(testInfo.project.name !== 'chromium-phone', 'runs only on phone viewport');
 
-    // Step 1: Create account in webapp
-    await page.goto('/');
-    await expect(page.getByText('Create account')).toBeVisible({ timeout: 10_000 });
+    await setupLiveSession(page);
+  });
 
-    await Promise.all([
-      page.waitForResponse(resp => resp.url().includes('/v1/auth') && resp.status() === 200),
-      page.getByText('Create account').click(),
-    ]);
-    await expect(page.getByText('connected')).toBeVisible({ timeout: 15_000 });
+  test('cancel thinking agent should not disconnect session', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'chromium-phone', 'runs only on phone viewport');
 
-    // Step 2: Extract credentials from webapp's localStorage
-    const credentials = await page.evaluate(() => {
-      const raw = localStorage.getItem('auth_credentials');
-      if (!raw) throw new Error('No auth_credentials in localStorage');
-      return JSON.parse(raw) as { token: string; secret: string };
-    });
-    console.log(`Extracted webapp credentials, token: ${credentials.token.substring(0, 20)}...`);
+    await setupLiveSession(page);
 
-    // Step 3: Seed CLI with the same credentials
-    seedCliCredentials(credentials.token, credentials.secret);
+    // Navigate to session detail by clicking the session row
+    await page.getByText('workspace', { exact: true }).first().click();
 
-    // Step 4: Start mock ACP session
-    startMockAcpSession();
+    // Wait for session detail view to load (input placeholder visible)
+    const messageInput = page.getByPlaceholder('Type a message ...');
+    await expect(messageInput).toBeVisible({ timeout: 10_000 });
 
-    // Step 5: Verify session appears in webapp
-    // The session name is derived from the working directory (/workspace -> "workspace")
-    // Use exact match to avoid matching the path header "/workspace"
-    await expect(page.getByText('workspace', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText('online').first()).toBeVisible();
+    // Send message containing "slow" — mock agent will sleep for 60s (cancelable)
+    await messageInput.click();
+    await page.keyboard.type('Do something slow');
+    await page.keyboard.press('Enter');
+
+    // Wait for the user message to appear in the chat, confirming it was sent
+    await expect(page.getByText('Do something slow')).toBeVisible({ timeout: 10_000 });
+
+    // Give time for the CLI to receive the message and start processing
+    await page.waitForTimeout(5_000);
+
+    // Press the cancel/abort button
+    await page.getByTestId('abort-button').click();
+
+    // Wait briefly for the cancel to take effect
+    await page.waitForTimeout(3_000);
+
+    // After cancel, session should still be connected — not disconnected
+    // The session detail status should show "online", not "last seen"
+    await expect(page.getByText(/last seen/)).not.toBeVisible();
+
+    // Navigate back to session list and verify session is still there
+    await page.goBack();
+    await expect(page.getByText('workspace', { exact: true }).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('online').first()).toBeVisible({ timeout: 10_000 });
   });
 });

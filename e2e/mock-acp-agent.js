@@ -36,7 +36,7 @@ class MockAgent {
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
 
-    this.sessions.set(sessionId, { pendingPrompt: null });
+    this.sessions.set(sessionId, { pendingPrompt: null, promptCount: 0 });
     return { sessionId };
   }
 
@@ -56,9 +56,22 @@ class MockAgent {
 
     session.pendingPrompt?.abort();
     session.pendingPrompt = new AbortController();
+    session.promptCount++;
+
+    // Check if prompt text requests slow mode
+    const promptText = (params.prompt || [])
+      .filter(b => b.type === 'text')
+      .map(b => b.text)
+      .join(' ')
+      .toLowerCase();
+    const isSlowMode = promptText.includes('slow');
 
     try {
-      await this.simulateTurn(params.sessionId, session.pendingPrompt.signal);
+      if (isSlowMode) {
+        await this.simulateLongTurn(params.sessionId, session.pendingPrompt.signal);
+      } else {
+        await this.simulateTurn(params.sessionId, session.pendingPrompt.signal);
+      }
     } catch (err) {
       if (session.pendingPrompt?.signal.aborted) {
         return { stopReason: 'cancelled' };
@@ -124,6 +137,29 @@ class MockAgent {
           type: 'text',
           text: ' I found the README. The project looks good! This mock session is working correctly.',
         },
+      },
+    });
+  }
+
+  async simulateLongTurn(sessionId, signal) {
+    // Send initial text to confirm the agent is working
+    await this.connection.sessionUpdate({
+      sessionId,
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: 'Starting a long operation...' },
+      },
+    });
+
+    // Sleep for 60s — this gives the test time to detect "thinking" and press cancel
+    await this.sleep(60_000, signal);
+
+    // If not cancelled, send completion text
+    await this.connection.sessionUpdate({
+      sessionId,
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: ' Done with long operation.' },
       },
     });
   }
